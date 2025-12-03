@@ -22,12 +22,12 @@ minimize total waiting time.
   the discrete SUMO action space (`action_space.n`).
 * `act(obs)` computes softmax probabilities over actions and samples one.
 * `learn(reward, done)` stores the transition, and on episode end performs a
-  reward-to-go REINFORCE update with a normalized discounted return, an
-  exponentially weighted baseline `R_bar` to reduce variance, and optional
-  gradient clipping. This makes learning progress more visible across episodes
-  when rewards are sparse or noisy. The reward comes from the environment; by
-  default the environment uses the `diff-waiting-time` signal reward, which
-  encourages reducing accumulated waiting time between steps.
+  classical reward-to-go REINFORCE update. Returns are discounted, centered
+  around a running baseline `R_bar` estimated from raw episode returns, then
+  optionally normalized before applying gradient ascent with clipping. The
+  reward comes directly from the environment; in the single-intersection setup
+  we explicitly use the `diff-waiting-time` reward so positive returns reflect
+  decreases in accumulated waiting time.
 
 ## 3. Running the single-intersection experiment
 

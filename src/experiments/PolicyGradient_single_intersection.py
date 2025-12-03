@@ -74,13 +74,14 @@ if __name__ == "__main__":
 
     # ---- environment ----
     env = SumoEnvironment(
-    net_file="src/sumo_rl/nets/single-intersection/single-intersection.net.xml",
-    route_file=args.route,
-    out_csv_name=str(out_prefix),   # <- use prefix inside the folder
-    use_gui=args.gui,
-    num_seconds=args.seconds,
-    min_green=args.min_green,
-    max_green=args.max_green,
+        net_file="src/sumo_rl/nets/single-intersection/single-intersection.net.xml",
+        route_file=args.route,
+        out_csv_name=str(out_prefix),  # <- use prefix inside the folder
+        use_gui=args.gui,
+        num_seconds=args.seconds,
+        min_green=args.min_green,
+        max_green=args.max_green,
+        reward_fn="diff-waiting-time",  # explicitly optimize waiting-time reduction
     )
 
     # ---- create agents ONCE (so they don't reset every episode) ----
@@ -91,7 +92,7 @@ if __name__ == "__main__":
         obs_dim = np.array(obs, dtype=np.float32).flatten().shape[0]
         pg_agents[ts] = PolicyGradientAgent(
             obs_dim=obs_dim,
-            action_space=env.action_space,  # or env.action_spaces[ts] if needed
+            action_space=env.action_spaces[ts],
             lr=args.alpha,
             beta_rew=0.01,
             gamma=args.gamma,

@@ -11,6 +11,7 @@ class PolicyGradientAgent:
         beta_rew=0.01,
         gamma=0.99,
         grad_clip=5.0,
+        normalize_advantages=True,
     ):
         self.obs_dim = obs_dim
         self.n_actions = action_space.n
@@ -18,6 +19,7 @@ class PolicyGradientAgent:
         self.beta_rew = beta_rew
         self.gamma = gamma
         self.grad_clip = grad_clip
+        self.normalize_advantages = normalize_advantages
         self.R_bar = 0.0
 
         rng = np.random.default_rng()
@@ -52,23 +54,29 @@ class PolicyGradientAgent:
         if not self.trajectory:
             return
 
-        # Compute discounted returns (reward-to-go)
+        # Compute discounted returns (reward-to-go). Positive values correspond
+        # to reduced waiting time under the default diff-waiting-time reward.
         returns = []
         G = 0.0
         for (_, _, _, r) in reversed(self.trajectory):
             G = r + self.gamma * G
             returns.insert(0, G)
 
-        # Normalize for numerical stability
         returns = np.array(returns, dtype=np.float32)
-        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
-        # Update running baseline with the episode mean return
+        # Update running baseline using the raw returns so the policy directly
+        # optimizes discounted accumulated reward (waiting-time reduction).
         self.R_bar = (1 - self.beta_rew) * self.R_bar + self.beta_rew * float(returns.mean())
 
+        # Advantage: centered around the baseline and optionally normalized for
+        # numerical stability.
+        advantages = returns - self.R_bar
+        if self.normalize_advantages:
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
         # Policy gradient update for each time step
-        for (phi, probs, action, _), Gt in zip(self.trajectory, returns):
-            advantage = Gt - self.R_bar
+        for (phi, probs, action, _), adv in zip(self.trajectory, advantages):
+            advantage = adv
             grad_log_pi = -np.outer(probs, phi)
             grad_log_pi[action] += phi
 
