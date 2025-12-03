@@ -39,7 +39,7 @@ if __name__ == "__main__":
         default="src/sumo_rl/nets/single-intersection/single-intersection.rou.xml",
         help="Route definition xml file.\n",
     )
-    prs.add_argument("-a", dest="alpha", type=float, default=0.1, required=False, help="Alpha learning rate (if used).\n")
+    prs.add_argument("-a", dest="alpha", type=float, default=1e-3, required=False, help="Policy-gradient learning rate.\n")
     prs.add_argument("-g", dest="gamma", type=float, default=0.99, required=False, help="Gamma discount rate.\n")
     prs.add_argument("-e", dest="epsilon", type=float, default=0.05, required=False, help="Epsilon.\n")
     prs.add_argument("-me", dest="min_epsilon", type=float, default=0.005, required=False, help="Minimum epsilon.\n")
@@ -54,6 +54,7 @@ if __name__ == "__main__":
         "-s", dest="seconds", type=int, default=10000, required=False, help="Number of simulation seconds per episode.\n"
     )
     prs.add_argument("-v", action="store_true", default=False, help="Print experience tuple.\n")
+    prs.add_argument("-gc", dest="grad_clip", type=float, default=5.0, help="Gradient clipping norm.\n")
     prs.add_argument("-runs", dest="runs", type=int, default=1, help="Number of episodes.\n")
     args = prs.parse_args()
 
@@ -91,8 +92,10 @@ if __name__ == "__main__":
         pg_agents[ts] = PolicyGradientAgent(
             obs_dim=obs_dim,
             action_space=env.action_space,  # or env.action_spaces[ts] if needed
-            lr=1e-3,
+            lr=args.alpha,
             beta_rew=0.01,
+            gamma=args.gamma,
+            grad_clip=args.grad_clip,
         )
 
     # ---- run multiple episodes ----
@@ -100,6 +103,8 @@ if __name__ == "__main__":
         # reset environment at the START of each episode
         current_states = env.reset()
         done = {"__all__": False}
+        episode_reward = 0.0
+        episode_steps = 0
 
         if args.fixed:
             while not done["__all__"]:
@@ -117,13 +122,17 @@ if __name__ == "__main__":
 
                 # LEARN
                 for ts, agent in pg_agents.items():
-                    next_obs = env.encode(next_states[ts], ts)
                     done_flag = done.get(ts, done["__all__"])
-                    agent.learn(next_state=next_obs, reward=rewards[ts], done=done_flag)
+                    agent.learn(reward=rewards[ts], done=done_flag)
+
+                episode_reward += float(np.mean(list(rewards.values())))
+                episode_steps += 1
 
                 current_states = next_states
 
         env.save_csv(str(out_prefix), run)
+        avg_reward = episode_reward / max(episode_steps, 1)
+        print(f"Episode {run}: steps={episode_steps}, total_reward={episode_reward:.3f}, avg_reward={avg_reward:.4f}")
 
     env.close()
     pattern = str(exp_dir / "ep*_conn*_ep*.csv")
